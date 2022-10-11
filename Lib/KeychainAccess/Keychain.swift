@@ -959,8 +959,6 @@ public final class Keychain {
         return type(of: self).prettify(itemClass: itemClass, items: items())
     }
 
-    #if os(iOS) && !targetEnvironment(macCatalyst)
-    @available(iOS 8.0, *)
     public func getSharedPassword(_ completion: @escaping (_ account: String?, _ password: String?, _ error: Error?) -> () = { account, password, error -> () in }) {
         if let domain = server.host {
             type(of: self).requestSharedWebCredential(domain: domain, account: nil) { (credentials, error) -> () in
@@ -977,10 +975,7 @@ public final class Keychain {
             completion(nil, nil, error)
         }
     }
-    #endif
-
-    #if os(iOS) && !targetEnvironment(macCatalyst)
-    @available(iOS 8.0, *)
+    
     public func getSharedPassword(_ account: String, completion: @escaping (_ password: String?, _ error: Error?) -> () = { password, error -> () in }) {
         if let domain = server.host {
             type(of: self).requestSharedWebCredential(domain: domain, account: account) { (credentials, error) -> () in
@@ -999,106 +994,94 @@ public final class Keychain {
             completion(nil, error)
         }
     }
-    #endif
 
-    #if os(iOS) && !targetEnvironment(macCatalyst)
-    @available(iOS 8.0, *)
     public func setSharedPassword(_ password: String, account: String, completion: @escaping (_ error: Error?) -> () = { e -> () in }) {
         setSharedPassword(password as String?, account: account, completion: completion)
     }
-    #endif
 
-    #if os(iOS) && !targetEnvironment(macCatalyst)
-    @available(iOS 8.0, *)
     fileprivate func setSharedPassword(_ password: String?, account: String, completion: @escaping (_ error: Error?) -> () = { e -> () in }) {
         if let domain = server.host {
-            SecAddSharedWebCredential(domain as CFString, account as CFString, password as CFString?) { error -> () in
-                if let error = error {
-                    completion(error.error)
-                } else {
-                    completion(nil)
+            if #available(macOS 11.0, *) {
+                SecAddSharedWebCredential(domain as CFString, account as CFString, password as CFString?) { error -> () in
+                    if let error = error {
+                        completion(error.error)
+                    } else {
+                        completion(nil)
+                    }
                 }
+            } else {
+                let error = securityError(status: Status.param.rawValue)
+                completion(error)
             }
         } else {
             let error = securityError(status: Status.param.rawValue)
             completion(error)
         }
     }
-    #endif
 
-    #if os(iOS) && !targetEnvironment(macCatalyst)
-    @available(iOS 8.0, *)
     public func removeSharedPassword(_ account: String, completion: @escaping (_ error: Error?) -> () = { e -> () in }) {
         setSharedPassword(nil, account: account, completion: completion)
     }
-    #endif
 
-    #if os(iOS) && !targetEnvironment(macCatalyst)
-    @available(iOS 8.0, *)
     public class func requestSharedWebCredential(_ completion: @escaping (_ credentials: [[String: String]], _ error: Error?) -> () = { credentials, error -> () in }) {
         requestSharedWebCredential(domain: nil, account: nil, completion: completion)
     }
-    #endif
 
-    #if os(iOS) && !targetEnvironment(macCatalyst)
-    @available(iOS 8.0, *)
     public class func requestSharedWebCredential(domain: String, completion: @escaping (_ credentials: [[String: String]], _ error: Error?) -> () = { credentials, error -> () in }) {
         requestSharedWebCredential(domain: domain, account: nil, completion: completion)
     }
-    #endif
-
-    #if os(iOS) && !targetEnvironment(macCatalyst)
-    @available(iOS 8.0, *)
+    
     public class func requestSharedWebCredential(domain: String, account: String, completion: @escaping (_ credentials: [[String: String]], _ error: Error?) -> () = { credentials, error -> () in }) {
         requestSharedWebCredential(domain: Optional(domain), account: Optional(account)!, completion: completion)
     }
-    #endif
 
-    #if os(iOS) && !targetEnvironment(macCatalyst)
-    @available(iOS 8.0, *)
     fileprivate class func requestSharedWebCredential(domain: String?, account: String?, completion: @escaping (_ credentials: [[String: String]], _ error: Error?) -> ()) {
-        SecRequestSharedWebCredential(domain as CFString?, account as CFString?) { (credentials, error) -> () in
-            var remoteError: NSError?
-            if let error = error {
-                remoteError = error.error
-                if remoteError?.code != Int(errSecItemNotFound) {
-                    print("error:[\(remoteError!.code)] \(remoteError!.localizedDescription)")
-                }
-            }
-            if let credentials = credentials {
-                let credentials = (credentials as NSArray).map { credentials -> [String: String] in
-                    var credential = [String: String]()
-                    if let credentials = credentials as? [String: String] {
-                        if let server = credentials[AttributeServer] {
-                            credential["server"] = server
-                        }
-                        if let account = credentials[AttributeAccount] {
-                            credential["account"] = account
-                        }
-                        if let password = credentials[SharedPassword] {
-                            credential["password"] = password
-                        }
+        if #available(macOS 11.0, *) {
+            SecRequestSharedWebCredential(domain as CFString?, account as CFString?) { (credentials, error) -> () in
+                var remoteError: NSError?
+                if let error = error {
+                    remoteError = error.error
+                    if remoteError?.code != Int(errSecItemNotFound) {
+                        print("error:[\(remoteError!.code)] \(remoteError!.localizedDescription)")
                     }
-                    return credential
                 }
-                completion(credentials, remoteError)
-            } else {
-                completion([], remoteError)
+                if let credentials = credentials {
+                    let credentials = (credentials as NSArray).map { credentials -> [String: String] in
+                        var credential = [String: String]()
+                        if let credentials = credentials as? [String: String] {
+                            if let server = credentials[AttributeServer] {
+                                credential["server"] = server
+                            }
+                            if let account = credentials[AttributeAccount] {
+                                credential["account"] = account
+                            }
+                            if let password = credentials[SharedPassword] {
+                                credential["password"] = password
+                            }
+                        }
+                        return credential
+                    }
+                    completion(credentials, remoteError)
+                } else {
+                    completion([], remoteError)
+                }
             }
+        } else {
+            completion([], nil)
         }
     }
-    #endif
 
-    #if os(iOS) && !targetEnvironment(macCatalyst)
     /**
      @abstract Returns a randomly generated password.
      @return String password in the form xxx-xxx-xxx-xxx where x is taken from the sets "abcdefghkmnopqrstuvwxy", "ABCDEFGHJKLMNPQRSTUVWXYZ", "3456789" with at least one character from each set being present.
      */
-    @available(iOS 8.0, *)
     public class func generatePassword() -> String {
-        return SecCreateSharedWebCredentialPassword()! as String
+        if #available(macOS 11.0, *) {
+            return SecCreateSharedWebCredentialPassword()! as String
+        } else {
+            return ""
+        }
     }
-    #endif
 
     // MARK:
 
@@ -1299,10 +1282,9 @@ private let UseAuthenticationUIFail = String(kSecUseAuthenticationUIFail)
 @available(iOS 9.0, OSX 10.11, watchOS 2.0, tvOS 9.0, *)
 private let UseAuthenticationUISkip = String(kSecUseAuthenticationUISkip)
 
-#if os(iOS) && !targetEnvironment(macCatalyst)
 /** Credential Key Constants */
+@available(macOS 11.0, *)
 private let SharedPassword = String(kSecSharedPassword)
-#endif
 
 extension Keychain: CustomStringConvertible, CustomDebugStringConvertible {
     public var description: String {
